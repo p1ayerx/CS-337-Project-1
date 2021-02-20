@@ -21,13 +21,17 @@ def get_awards(year):
     path = "gg" + year + ".json"
     data = api.read(path)
     data["pp_text"] = api.preprocess_data(data["text"])
-    find_awards(data)
+    awards = api.find_awards(data)
     return awards
 
 def get_nominees(year):
     '''Nominees is a dictionary with the hard coded award
     names as keys, and each entry a list of strings. Do NOT change
     the name of this function or what it returns.'''
+    path = "gg" + year + ".json"
+    data = api.read(path)
+    data["pp_text"] = api.preprocess_data(data["text"])
+    nonminees = api.find_nominees(data)
     # Your code here
     return nominees
 
@@ -36,6 +40,10 @@ def get_winner(year):
     names as keys, and each entry containing a single string.
     Do NOT change the name of this function or what it returns.'''
     # Your code here
+    path = "gg" + year + ".json"
+    data = api.read(path)
+    data["pp_text"] = api.preprocess_data(data["text"])
+    winners = api.find_winners(data)
     return winners
 
 def get_presenters(year):
@@ -43,6 +51,10 @@ def get_presenters(year):
     names as keys, and each entry a list of strings. Do NOT change the
     name of this function or what it returns.'''
     # Your code here
+    path = "gg" + year + ".json"
+    data = api.read(path)
+    data["pp_text"] = api.preprocess_data(data["text"])
+    presenters = api.find_presenters(data)
     return presenters
 
 def pre_ceremony():
