@@ -18,6 +18,10 @@ def get_awards(year):
     '''Awards is a list of strings. Do NOT change the name
     of this function or what it returns.'''
     # Your code here
+    path = "gg" + year + ".json"
+    data = api.read(path)
+    data["pp_text"] = api.preprocess_data(data["text"])
+    find_awards(data)
     return awards
 
 def get_nominees(year):
