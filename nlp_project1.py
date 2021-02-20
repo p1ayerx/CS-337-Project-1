@@ -121,7 +121,7 @@ def remove_stop_words_from_token(df,column_name):
 
 #filters tweets by regex_string ex: pic|film|movie, takes tokenized column
 def filter_tweets(df,column_name, regex_string):
-  temp = pd.DataFrame(data[column_name].apply(lambda x: " ".join(x)))
+  temp = pd.DataFrame(df[column_name].apply(lambda x: " ".join(x)))
   return df[temp[column_name].str.contains(regex_string,regex=True)]
 
 #obtains nouns, takes dataframe and column name with text (not token)
@@ -179,7 +179,7 @@ def find_associated_proper_nouns(df, column_name):
 #takes preprocessed dataframe with tokens on column "pp_text" and text on column "text"
 def find_hosts(df):
   filtered_tweets = filter_tweets(df, "pp_text", "host|hosts|hosted")
-  possible_hosts, host_freq = find_associated_people(filtered_tweets, "text")
+  possible_hosts, host_freq = find_associated_proper_nouns(filtered_tweets, "text")
   if host_freq[0][1] - host_freq[1][1] > 100:
     return host_freq[0][0]
   else:
@@ -187,17 +187,17 @@ def find_hosts(df):
 
 def find_best_dressed(df):
   filtered_tweets = filter_tweets(df, "pp_text", "best dressed")
-  possible_best_dressed, best_dressed_freq = find_associated_people(filtered_tweets, "text")
+  possible_best_dressed, best_dressed_freq = find_associated_proper_nouns(filtered_tweets, "text")
   return best_dressed_freq[0][0]
 
 def find_worst_dressed(df):
   filtered_tweets = filter_tweets(df, "pp_text", "worst dressed")
-  possible_worst_dressed, worst_dressed_freq = find_associated_people(filtered_tweets, "text")
+  possible_worst_dressed, worst_dressed_freq = find_associated_proper_nouns(filtered_tweets, "text")
   return worst_dressed_freq[0][0]
 
 def find_funniest(df):
   filtered_tweets = filter_tweets(data, "pp_text", "funniest|hilarious")
-  possible_funniest, funniest_freq = find_associated_people(filtered_tweets, "text")
+  possible_funniest, funniest_freq = find_associated_proper_nouns(filtered_tweets, "text")
   return funniest_freq[0][0]
 
 def find_awards(df):
