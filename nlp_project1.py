@@ -26,11 +26,8 @@ import re
 import sys
 nlp = spacy.load("en_core_web_sm")
 import numpy as np
-import tweepy
-from tmdbv3api import TMDb, Movie, Person, TV
 from itertools import combinations 
 from collections import defaultdict
-import unidecode
 
 hardcodedAwards = ['cecil b. demille award',
                    'best motion picture drama',
@@ -58,15 +55,6 @@ hardcodedAwards = ['cecil b. demille award',
                    'best performance by an actor in a mini-series or motion picture made for television',
                    'best performance by an actress in a supporting role in a series, mini-series or motion picture made for television',
                    'best performance by an actor in a supporting role in a series, mini-series or motion picture made for television']
-
-# auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-# auth.set_access_token(access_token, access_token_secret)
-# api = tweepy.API(auth)
-
-tmdb = TMDb()
-#DONT SHARE MY API KEYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-tmdb.api_key = 'de18403f2add7f69d5b5a3760598be10'
-tmdb.request_timeout = 3
 
 def read(path):
   with open(path,mode="rt") as file:
@@ -196,7 +184,7 @@ def find_worst_dressed(df):
   return worst_dressed_freq[0][0]
 
 def find_funniest(df):
-  filtered_tweets = filter_tweets(data, "pp_text", "funniest|hilarious")
+  filtered_tweets = filter_tweets(df, "pp_text", "funniest|hilarious")
   possible_funniest, funniest_freq = find_associated_proper_nouns(filtered_tweets, "text")
   return funniest_freq[0][0]
 
@@ -215,204 +203,89 @@ def find_awards(df):
 
 ########################## MAPPING PRESENTS/NOMINEES/WINNERS TO AWARDS #####################
 
-#COPY OF THE ASSOCIATED ACTORS FUNCTION BUT FOR MOVIES
-def find_associated_movies(df, column_name):
-  noun = []
-  badWords = ["Oscar", "Nominee", "Emmy", "Golden", "Globes"]
 
-  for doc in nlp.pipe(df[column_name]):
-    people_and_works = []
-    for token in doc:
-        # if (token.ent_type_ == "PERSON" or token.ent_type_ == "WORK_OF_ART") and str(token) not in badWords:
-        if token.ent_type_ == "WORK_OF_ART" and str(token) not in badWords:
-          people_and_works.append(token)
-    noun.append(people_and_works)
+def find_presenters(possible_presenters, presenter_freq, possible_awards, award_freq, award):
+  presenters = possible_presenters["associated_proper_nouns"].tolist()
+  presenter_list = []
+  for award in award_freq:
+    name = award[0]
+    if [name] in presenters:
+      presenter_list.append(name)
+      return presenter_list
 
-  test = []
+  return presenter_list
 
-  movies = defaultdict(int)
+def find_nominees(possible_nominees, nominee_freq, possible_awards, award_freq, award):
+  nominees = possible_nominees["associated_proper_nouns"].tolist()
+  nominee_list = []
+  counter = 0
+  for award in award_freq:
+    name = award[0]
+    if [name] in nominees:
+      counter += 1
+      nominee_list.append(name)
 
-  for row in noun:
-    combos = combinations(row, 2)
-    temp = []
-    for c in combos:
-      name = str(c[0]) + " " + str(c[1])
-      results = Movie().search(name)
-      if results:
-        for r in results:
-          cleanName = unidecode.unidecode(r.title).replace("-", " ")
-          if r.popularity > 1 and cleanName not in temp and cleanName.lower().find(name.lower()) != -1:
-            temp.append(cleanName)
-            movies[cleanName] += 1
-    test.append(temp)
+      if counter == 5:
+        return nominee_list
 
-  #USE THIS TO COMPARE AGAINST OTHER REGEX SEARCHES (i.e., host vs nominee)
-  sorted_freq_dict = sorted(movies.items(), key=lambda kv: kv[1], reverse=True)
-            
-  # df["people"] = noun
-  df["associated_movies"] = test
-
-  df = df[df['associated_movies'].map(lambda x: len(x)) > 0]
-
-  return df, sorted_freq_dict
-
-#COPY OF THE ASSOCIATED ACTORS FUNCTION BUT FOR TV SHOWS
-def find_associated_shows(df, column_name):
-  noun = []
-  badWords = ["Oscar", "Nominee", "Emmy", "Golden", "Globes"]
-
-  for doc in nlp.pipe(df[column_name]):
-    people_and_works = []
-    for token in doc:
-        # if (token.ent_type_ == "PERSON" or token.ent_type_ == "WORK_OF_ART") and str(token) not in badWords:
-        if token.ent_type_ == "WORK_OF_ART" and str(token) not in badWords:
-          people_and_works.append(token)
-    noun.append(people_and_works)
-
-  test = []
-
-  shows = defaultdict(int)
-
-  for row in noun:
-    combos = combinations(row, 2)
-    temp = []
-    for c in combos:
-      name = str(c[0]) + " " + str(c[1])
-      results = TV().search(name)
-      if results:
-        for r in results:
-          cleanName = unidecode.unidecode(r.name).replace("-", " ")
-          if r.popularity > 1 and cleanName not in temp and cleanName.lower().find(name.lower()) != -1:
-            temp.append(cleanName)
-            shows[cleanName] += 1
-    test.append(temp)
-
-  #USE THIS TO COMPARE AGAINST OTHER REGEX SEARCHES (i.e., host vs nominee)
-  sorted_freq_dict = sorted(shows.items(), key=lambda kv: kv[1], reverse=True)
-            
-  # df["people"] = noun
-  df["associated_shows"] = test
-
-  df = df[df['associated_shows'].map(lambda x: len(x)) > 0]
-
-  return df, sorted_freq_dict
-
-def find_presenters(award, tweets):
-  possible_presenters, present_freq = find_associated_actors(tweets, "text")
-  return possible_presenters[["text", "associated_actors"]], present_freq
-
-def find_nominees(award, tweets):
-  # DO ANOTHER FILTER BY REGEX FOR NOMINEE|NOMINEES
-  nominee_freq = defaultdict(int)
-  if "cecille" in award or "actor" in award or "actress" in award or "director" in award:
-    # search find_associated_actors
-    possible_nominees, nominee_freq = find_associated_actors(tweets, "text")
-    return possible_nominees[["text", "associated_actors"]], nominee_freq
-  else:
-    if "television" in award:
-      # search find_associated_shows
-      possible_nominees, nominee_freq = find_associated_shows(tweets, "text")
-      return possible_nominees[["text", "associated_shows"]], nominee_freq
-
-    # search find_associated_movies
-    possible_nominees, nominee_freq = find_associated_movies(tweets, "text")
-    return possible_nominees[["text", "associated_movies"]], nominee_freq
-
-def find_winners(award, tweets):
-  winner_freq = defaultdict(int)
-  if "cecil" in award or "actor" in award or "actress" in award or "director" in award:
-    # search find_associated_actors
-    possible_winners, winners_freq = find_associated_actors(tweets, "text")
-    return possible_winners[["text", "associated_actors"]], winners_freq
-  else:
-    if "television" in award:
-      # search find_associated_shows
-      possible_winners, winner_freq = find_associated_shows(tweets, "text")
-      return possible_winners[["text", "associated_shows"]], winner_freq
-
-    # search find_associated_movies
-    possible_winners, winners_freq = find_associated_actors(tweets, "text")
-    return possible_winners[["text", "associated_movies"]], winners_freq
-
-def get_filtered_award_tweets(df, award):
-  regex_str = ''
-
-  if 'picture' in award or 'film' in award:
-    regex_str = 'pic|movie|film'
-
-    # if filtered_subsets['picture'] == None:
-    filtered_subsets['picture'] = filter_tweets(df, "pp_text", regex_str)
-
-    # person_filter = filter_tweets_by_person(filtered_subsets['picture'], award)
-    # attribute_filter = filter_tweets_by_attribute(person_filter, award)
-    filtered_tweets = filter_tweets(filtered_subsets['picture'], "pp_text", format_regex_str(award))
-    return filtered_tweets
-
-  elif 'television' in award:
-    regex_str = 'television|series|show|hbo|netflix|hulu|tv'
-
-    # if filtered_subsets['television'] == None:
-    filtered_subsets['television'] = filter_tweets(df, "pp_text", regex_str)
-
-    # person_filter = filter_tweets_by_person(filtered_subsets['picture'], award)
-    # attribute_filter = filter_tweets_by_tv_attribute(person_filter, award)
-    filtered_tweets = filter_tweets(filtered_subsets['television'], "pp_text", format_regex_str(award))
-    return filtered_tweets
-  else:
-    return df
+  return nominee_list
 
 def format_regex_str(award):
-  regex_str = ''
-
   filtered_award = award
 
-  stop_words = ['by', 'an', 'in', 'a', 'or', 'made', 'for']
+  words = filtered_award.split(' ')
+
+  formatted_regex = ''
+  for w in words:
+    formatted_regex = formatted_regex + '(?=.*' + w + ')'
+
+  filtered_award = formatted_regex  
+
+  stop_words = ['(?=.*by)', '(?=.*an)', '(?=.*in)', '(?=.*a)', '(?=.*or)', '(?=.*made)', '(?=.*for)', '(?=.*b.)']
 
   for w in stop_words:
     filtered_award = filtered_award.replace(w, '')
 
   filtered_award = filtered_award.replace('-', '')
 
-  blocked_phrases = ['motion picture', 'best performance', 'animated feature', 'foreign language', 'best director', 'best screenplay', 'original score', 'original song', 'television series']
-
-  for phrase in blocked_phrases:
-    words = phrase.split(' ', 1)
-    formatted_regex = ''
-    for word in words:
-      formatted_regex = formatted_regex + word + '&'
-
-    formatted_regex = formatted_regex[:-1]
-
-    filtered_award = filtered_award.replace(phrase, formatted_regex)
-
-  filtered_award = filtered_award.replace(' ', '|')
-
   return filtered_award
 
-def process_award(df):
+def process_award(df, awards):
   presenters_nominees_winners = {}
 
-  # for award in hardcodedAwards:
-  award = hardcodedAwards[1]
-  # get a subset of tweets based on whether the award is for movies or tv
-  filtered_tweets = get_filtered_award_tweets(data, award)
+  presenter_tweets = filter_tweets(df, "pp_text", "present|presenter|presents|presented|presenters")
+  nominee_tweets = filter_tweets(df, "pp_text", "nomination|nominee|nominated|nominate|snubbed|snub")
+  winner_tweets = filter_tweets(df, "pp_text", "win|wins|winner|winners|won")
 
-  presenters = find_presenters(award, filtered_tweets)
-  nominees = find_nominees(award, filtered_tweets)
-  winners = find_winners(award, filtered_tweets)
-  presenters_nominees_winners[award] = {"Presenters": presenters, "Nominees": nominees, "Winners": winners}
+  possible_presenters, presenter_freq = find_associated_proper_nouns(presenter_tweets, "text")
+  possible_nominees, nominee_freq = find_associated_proper_nouns(nominee_tweets, "text")
+  possible_winners, winner_freq = find_associated_proper_nouns(winner_tweets, "text")
+
+  for award in awards:
+    award_tweets = filter_tweets(df, "pp_text", format_regex_str(award))
+    possible_awards, award_freq = find_associated_proper_nouns(award_tweets, "text")
+
+    presenters = find_presenters(possible_presenters, presenter_freq, possible_awards, award_freq, awards)
+    nominees = find_nominees(possible_nominees, nominee_freq, possible_awards, award_freq, awards)
+
+    winners = ""
+    if len(award_freq) > 0:
+      winners = award_freq[0][0]
+
+    presenters_nominees_winners[award] = {"Presenters": presenters, "Nominees": nominees, "Winners": winners}
 
   return presenters_nominees_winners
 
-def output(data):
+def output(data, awardz):
   hosts = find_hosts(data)
-  presenters_nominees_winners = process_award(data)
+  presenters_nominees_winners = process_award(data, awardz)
   presenters_nominees_winners["Host"] = hosts
   best_dressed = find_best_dressed(data)
   worst_dressed = find_worst_dressed(data)
-  for key in presenters_nominees_winnters:
-    print (key, presenters_nominees_winners[key])
-  print ("Best Dressed: " + best_dressed)
-  print ("Worst Dressed: " + worst_dressed)
-  print ("Funniest: " + find_funniest)
+  funniest = find_funniest(data)
+  for key in presenters_nominees_winners:
+    print(key, presenters_nominees_winners[key])
+  print("Best Dressed: " + best_dressed)
+  print("Worst Dressed: " + worst_dressed)
+  print("Funniest: " + funniest)
   return presenters_nominees_winners
